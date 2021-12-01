@@ -4,3 +4,4 @@ to study transformer
 
 I have a purpose that I will be coding other Transformer model to overcome timecomplexity O(n^2) 
 like reformer, routing, linear transformer
+-> Thus i must fully understand transformer
