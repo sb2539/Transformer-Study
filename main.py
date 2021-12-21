@@ -51,10 +51,42 @@ class Generator(nn.Module):
     # Define standard linear + softmax generation step"
     def __init__(self, d_model, vocab):
         super(Generator, self).__init__()
-        self.proj = nn.Linear(d_model, vocab)
+        self.proj = nn.Linear(d_model, vocab)  # 선형 변환
 
     def forward(self, x):
         return F.log_softmax(self.proj(x), dim = -1)  # dim = -1이 의미하는 것이 무엇인가
+
+# N 만큼의 identical layers 생성
+def clones(module, N) :
+    return nn.ModuleList([copy.deepcopy(module) for _ in range(N)]) # 모듈 리스트 리턴
+
+# Encoder class
+class Encoder(nn.Module):
+    "Core encoder is a stack of N layers"
+    def __init__(self, layer, N):
+        super(Encoder, self).__init__()
+        self.layers = clones(layer, N) # 모듈리스트에서 layer 가져옴
+        self.norm = LayerNorm(layer.size) # 층 정규화
+
+    def forward(self, x, mask):
+        # Pass the input (and mask) through each layer in turn"
+        for layer in self.layers:
+            x = layer(x, mask)
+        return self.norm(x)
+
+# LayerNormalization class
+class LayerNorm(nn.Module):
+# Construct a layernorm module (See citation for details)
+    def __init__(self, features, eps = 1e-6):  # eps = 분모 0 방지하는 매우 작은 값 (지수표기법 : 0.000001
+        super(LayerNorm, self).__init__()
+        self.a_2 = nn.Parameter(torch.ones(features)) # 초기 값 1인 학습가능한 감마 파라미터
+        self.b_2 = nn.Parameter(torch.zeros(features)) # 초기 값 0인 학습가능한 베타 파라미터
+        self.eps = eps
+
+    def forward(self, x):
+        mean = x.mean(-1, keepdim=True) # 평균 산출
+        std = x.std(-1, keepdim=True) # 분산 산출
+        return self.a_2 * (x - mean) / (std + self.eps) + self.b_2
 
 ## Word embedding class
 
