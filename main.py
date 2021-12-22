@@ -88,6 +88,34 @@ class LayerNorm(nn.Module):
         std = x.std(-1, keepdim=True) # 분산 산출
         return self.a_2 * (x - mean) / (std + self.eps) + self.b_2
 
+# SublayerConnection class
+
+class SublayerConnection(nn.Module):
+    """
+    A residual connection followed by a layer norm
+    Note for code simplicity the norm is first as opposed to last.
+    """
+    def __init__(self, size, dropout):
+        super(SublayerConnection, self).__init__()
+        self.norm = LayerNorm(size)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x, sublayer):
+        "Apply residual connection to any sublayer with the same size"
+        return x + self.dropout(sublayer(self.norm(x)))  # skip connection 부분
+## FeedForward class
+
+class PositionwiseFeedForward(nn.Module):
+    "Implements FFN equation"
+    def __init__(self, d_model, d_ff, dropout = 0.1):
+        super(PositionwiseFeedForward, self).__init__()
+        self.w_1 = nn.Linear(d_model, d_ff) # 가중치 행렬 w1
+        self.w_2 = nn.Linear(d_ff, d_model) # 가중치 행렬 w2
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        return self.w_2(self.dropout(F.relu(self.w_1(x))))  # FFN(X) = RELU(XW_1 + b_1)W_2 + b_2
+
 ## Word embedding class
 
 class Embeddings(nn.Module) :
