@@ -46,7 +46,7 @@ class EncoderDecoder(nn.Module):
         return self.decoder(self.tgt_embed(tgt), memory, src_mask, tgt_mask)
 
 # class generator
-
+"""디코더에서 각 timestep 별로 softmax 하여 확률값 반환"""
 class Generator(nn.Module):
     # Define standard linear + softmax generation step"
     def __init__(self, d_model, vocab):
@@ -109,7 +109,7 @@ class PositionwiseFeedForward(nn.Module):
     "Implements FFN equation"
     def __init__(self, d_model, d_ff, dropout = 0.1):
         super(PositionwiseFeedForward, self).__init__()
-        self.w_1 = nn.Linear(d_model, d_ff) # 가중치 행렬 w1
+        self.w_1 = nn.Linear(d_model, d_ff) # 가중치 행렬 w1 -> xw + b
         self.w_2 = nn.Linear(d_ff, d_model) # 가중치 행렬 w2
         self.dropout = nn.Dropout(dropout)
 
