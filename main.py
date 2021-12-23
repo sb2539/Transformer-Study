@@ -103,9 +103,25 @@ class SublayerConnection(nn.Module):
     def forward(self, x, sublayer):
         "Apply residual connection to any sublayer with the same size"
         return x + self.dropout(sublayer(self.norm(x)))  # skip connection 부분
+
+# EncoderLayer class
+
+class EncoderLayer(nn.Module):
+    "Encoder is made up of self-attention and FFN"
+    def __init__(self, size, self_attn, feed_forward, dropout):
+        super(EncoderLayer, self).__init__()
+        self.self_attn = self_attn
+        self.feed_forward = feed_forward
+        self.sublayer = clones(SublayerConnection(size, dropout), 2)
+        self.size = size
+
+    def forward(self, x, mask):
+        x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, mask))
+        return self.sublayer[1](x, self.feed_forward)
+
 ## FeedForward class
 
-class PositionwiseFeedForward(nn.Module):
+class PositionwiseFeedForward(nn.Module): # 이해완료
     "Implements FFN equation"
     def __init__(self, d_model, d_ff, dropout = 0.1):
         super(PositionwiseFeedForward, self).__init__()
