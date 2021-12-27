@@ -116,8 +116,9 @@ class EncoderLayer(nn.Module):
         self.size = size
 
     def forward(self, x, mask):
-        x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, mask))
-        return self.sublayer[1](x, self.feed_forward)
+        x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, mask)) # 첫번째 층 셀프 어탠션
+        return self.sublayer[1](x, self.feed_forward)  # 두번 째 층 피드포워드
+    """리턴으로 피드포워드 층 결과만 보내는 이유는 뭘까?"""
 ## decoder class
 class Decoder(nn.Module):
     "Generic N layer decoder  with masking"
