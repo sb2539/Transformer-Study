@@ -46,7 +46,7 @@ class EncoderDecoder(nn.Module):
         return self.decoder(self.tgt_embed(tgt), memory, src_mask, tgt_mask)
 
 # class generator
-
+"""디코더에서 각 timestep 별로 softmax 하여 확률값 반환"""
 class Generator(nn.Module):
     # Define standard linear + softmax generation step"
     def __init__(self, d_model, vocab):
@@ -103,13 +103,58 @@ class SublayerConnection(nn.Module):
     def forward(self, x, sublayer):
         "Apply residual connection to any sublayer with the same size"
         return x + self.dropout(sublayer(self.norm(x)))  # skip connection 부분
+
+# EncoderLayer class
+
+class EncoderLayer(nn.Module):
+    "Encoder is made up of self-attention and FFN"
+    def __init__(self, size, self_attn, feed_forward, dropout):
+        super(EncoderLayer, self).__init__()
+        self.self_attn = self_attn
+        self.feed_forward = feed_forward
+        self.sublayer = clones(SublayerConnection(size, dropout), 2)
+        self.size = size
+
+    def forward(self, x, mask):
+        x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, mask)) # 첫번째 층 셀프 어탠션
+        return self.sublayer[1](x, self.feed_forward)  # 두번 째 층 피드포워드
+    """리턴으로 피드포워드 층 결과만 보내는 이유는 뭘까?"""
+## decoder class
+class Decoder(nn.Module):
+    "Generic N layer decoder  with masking"
+    def __init__(self, layer, N):
+        super(Decoder, self).__init__()
+        self.layers = clones(layer, N)
+        self.norm = LayerNorm(layer.size)  # 층 정규화
+
+    def forward(self, x, memory, src_mask, tgt_mask):
+        for layer in self.layers:
+            x = layer(x, memory, src_mask, tgt_mask)
+        return self.norm(x)
+
+class DecoderLayer(nn.Module):
+    "Decoder is made of self-attn, src-attn, and feed forward (define below)"
+    def __init__(self, size, self_attn, src_attn, feed_forward, dropout):
+        super(DecoderLayer, self).__init__()
+        self.size = size
+        self.self_attn = self_attn
+        self.src_attn = src_attn
+        self.feed_forward = feed_forward
+        self.sublayer = clones(SublayerConnection(size, dropout), 3)
+
+    def forward(self, x, memory, src_mask, tgt_mask):
+        m = memory
+        x = self.sublayer[0](x, lambda x : self.self_attn(x, x, x, tgt_mask))
+        x = self.sublayer[1](x, lambda x : self.src_attn(x, m, m, src_mask))
+        return self.sublayer[2](x, self.feed_forward)
+
 ## FeedForward class
 
-class PositionwiseFeedForward(nn.Module):
+class PositionwiseFeedForward(nn.Module): # 이해완료
     "Implements FFN equation"
     def __init__(self, d_model, d_ff, dropout = 0.1):
         super(PositionwiseFeedForward, self).__init__()
-        self.w_1 = nn.Linear(d_model, d_ff) # 가중치 행렬 w1
+        self.w_1 = nn.Linear(d_model, d_ff) # 가중치 행렬 w1 -> xw + b
         self.w_2 = nn.Linear(d_ff, d_model) # 가중치 행렬 w2
         self.dropout = nn.Dropout(dropout)
 
