@@ -9,7 +9,7 @@ import seaborn
 import spacy
 seaborn.set_context(context="talk")
 ##%matplotlib inline
-
+""" 임시로 넣은 토큰 부분 """
 # tokenize
 d_model = 512
 text = "I am a student"
@@ -147,6 +147,27 @@ class DecoderLayer(nn.Module):
         x = self.sublayer[0](x, lambda x : self.self_attn(x, x, x, tgt_mask))
         x = self.sublayer[1](x, lambda x : self.src_attn(x, m, m, src_mask))
         return self.sublayer[2](x, self.feed_forward)
+
+def subsequent_mask(size):
+    attn_shape = (1, size, size)
+    subsequent_mask = np.triu(np.ones(attn_shape), k =1).astype('uint8')
+    return torch.from_numpy(subsequent_mask) == 0
+
+def attention(query, key, value, mask = None, dropout = None):
+    "Compute 'Scaled Dot Product Attention ' "
+    d_k = query.size(-1)
+    scores = torch.matmul(query, key.transpose(-2, -1)) \
+    / math.sqrt(d_k)  # 주목 점수 구하는 부분
+    if mask is not None:  # 마스크 있으면
+        scores = scores.masked_fill(mask == 0, -1e9)
+    p_attn = F.softmax(scores, dim = -1)
+    if dropout is not None: # 드롭아웃 있으면
+        p_attn = dropout(p_attn)
+    return torch.matmul(p_attn, value), p_attn
+
+
+
+
 
 ## FeedForward class
 
