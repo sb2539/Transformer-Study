@@ -28,11 +28,11 @@ print(vocab, len(vocab))
 class EncoderDecoder(nn.Module):
     def __init__(self, encoder, decoder, src_embed, tgt_embed, generator):
         super(EncoderDecoder, self).__init__()
-        self.encoder = encoder
-        self.decoder = decoder
-        self.src_embed = src_embed
-        self.tgt_embed = tgt_embed
-        self.generator = generator
+        self.encoder = encoder # 인코더
+        self.decoder = decoder # 디코더
+        self.src_embed = src_embed  # 입력 문장 임베디드
+        self.tgt_embed = tgt_embed  # 타켓 문장 임베디드
+        self.generator = generator  # 제너레이터
 
     def forward(self, src, tgt, src_mask, tgt_mask):
         # Take in and process masked src and target sequences."
@@ -112,13 +112,12 @@ class EncoderLayer(nn.Module):
         super(EncoderLayer, self).__init__()
         self.self_attn = self_attn
         self.feed_forward = feed_forward
-        self.sublayer = clones(SublayerConnection(size, dropout), 2)
+        self.sublayer = clones(SublayerConnection(size, dropout), 2) # 클론 함수 통해서 서브레이어 복사
         self.size = size
 
     def forward(self, x, mask):
         x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, mask)) # 첫번째 층 셀프 어탠션
-        return self.sublayer[1](x, self.feed_forward)  # 두번 째 층 피드포워드
-    """리턴으로 피드포워드 층 결과만 보내는 이유는 뭘까?"""
+        return self.sublayer[1](x, self.feed_forward)  # 두번 째 층 피드포워드 출력만 다음 add&norm 연산에 필요하니깐
 ## decoder class
 class Decoder(nn.Module):
     "Generic N layer decoder  with masking"
@@ -144,43 +143,43 @@ class DecoderLayer(nn.Module):
 
     def forward(self, x, memory, src_mask, tgt_mask):
         m = memory
-        x = self.sublayer[0](x, lambda x : self.self_attn(x, x, x, tgt_mask))
-        x = self.sublayer[1](x, lambda x : self.src_attn(x, m, m, src_mask))
-        return self.sublayer[2](x, self.feed_forward)
+        x = self.sublayer[0](x, lambda x : self.self_attn(x, x, x, tgt_mask)) # 디코더의 첫번째 레이어 셀프어탠션 함
+        x = self.sublayer[1](x, lambda x : self.src_attn(x, m, m, src_mask))  # 디코더의 두번째 레이어 셀프어탠션 아님 key, value는 인코더 출력
+        return self.sublayer[2](x, self.feed_forward) # 피드 포워드 까지 한 결과를 내보낸다.
 
-def subsequent_mask(size):
-    attn_shape = (1, size, size)
-    subsequent_mask = np.triu(np.ones(attn_shape), k =1).astype('uint8')
-    return torch.from_numpy(subsequent_mask) == 0
+def subsequent_mask(size): # 이해한게 맞나 모르겠다
+    attn_shape = (1, size, size) # 튜플 생성
+    subsequent_mask = np.triu(np.ones(attn_shape), k =1).astype('uint8') # 1번째 대각선 아래로 0으로 채우고 나머지 1
+    return torch.from_numpy(subsequent_mask) == 0  # torch.from_numpy 텐서로 변환해도 메모리 공유라
+                                                    # 텐서 값 바뀌면 마스크 array 값도 바뀜
 
-def attention(query, key, value, mask = None, dropout = None):
+def attention(query, key, value, mask = None, dropout = None): # 이해한게 맞나 모르겠다
     "Compute 'Scaled Dot Product Attention ' "
     d_k = query.size(-1)
     scores = torch.matmul(query, key.transpose(-2, -1)) \
-    / math.sqrt(d_k)  # 주목 점수 구하는 부분
-    if mask is not None:  # 마스크 있으면
-        scores = scores.masked_fill(mask == 0, -1e9)
-    p_attn = F.softmax(scores, dim = -1)
-    if dropout is not None: # 드롭아웃 있으면
+    / math.sqrt(d_k)                # 주목 점수 구하는 부분
+    if mask is not None:            # 마스크 있으면
+        scores = scores.masked_fill(mask == 0, -1e9)  # 마스크가 false이면 아주 작은 값으로 채움
+    p_attn = F.softmax(scores, dim = -1)     # 소프트맥스 적용
+    if dropout is not None:         # 드롭아웃 있으면
         p_attn = dropout(p_attn)
-    return torch.matmul(p_attn, value), p_attn
+    return torch.matmul(p_attn, value), p_attn # 어탠션 스코어와 어탠션 매트릭스 리턴
 
 "MultiHeadAttention class"
 class MultiHeadedAttention(nn.Module):
     def __init__(self, h, d_model, dropout = 0.1):
         "Take in model size and number of heads"
         super(MultiHeadedAttention, self).__init__()
-        assert d_model % h == 0
-        self.d_k = d_model // h
-        self.h = h
-        self.linears = clones(nn.Linear(d_model, d_model), 4)
-        self.attn = None
+        assert d_model % h == 0 # 가정설정문을 통한 head로 d_model이 나눠지지 않는 경우
+        self.d_k = d_model // h #64 차원
+        self.h = h  # head 개수 8
+        self.linears = clones(nn.Linear(d_model, d_model), 4) #4개의 d_model*d_model 선형함수 생성성        self.attn = None
         self.dropout = nn.Dropout(p = dropout)
 
     def forward(self, query, key, value, mask = None):
         if mask is not None:
-            mask = mask.unsqueeze(1)
-        nbatches = query.size(0)
+            mask = mask.unsqueeze(1) # 마스크 차원 1차원위치에 1 증가
+        nbatches = query.size(0)  # 쿼리의 첫번째 차원 크기 만큼 배치 개수
 
         # 1) do all the linear projectionsin batch from d_model => h * d_k
         query, key, value = \
@@ -188,7 +187,7 @@ class MultiHeadedAttention(nn.Module):
          for l, x in zip(self.linears, (query, key, value))]
 
         # 2) apply attention on all the projected vectors in batch.
-        x, self.attn = attention(query, key, value, mask = mask,
+        x, self.attn = attention(query, key, value, mask = mask, # 어탠션
                                  dropout = self.dropout)
 
         # 3) concat using a view and apply a final linear
@@ -216,7 +215,7 @@ class Embeddings(nn.Module) :
         super(Embeddings, self).__init__()
         self.lut = nn.Embedding(vocab, d_model)  # (seq_len, d_model) embedding
         self.d_model = d_model
-## is it need??
+## is it need?? -> forward 함수 자체는 nn.Module 상속이기 때문에 오버라이드 해서 써야 하긴 함
     def forward(self, x):
         return self.lut(x) * math.sqrt(self.d_model) # multiply sqrt(d_model) to embeded result
 
@@ -232,18 +231,16 @@ class PositionalEncoding(nn.Module):
         position = torch.arange(0, max_len).unsqueeze(1)  # max_len * 1 크기의 텐서 생성
         div_term = torch.exp(torch.arange(0, d_model, 2)*  # 1/10000^(2i/d_mdel)
                              -(math.log(10000.0)/d_model))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0)
+        pe[:, 0::2] = torch.sin(position * div_term)  # 짝수 사인함수 인코딩
+        pe[:, 1::2] = torch.cos(position * div_term)  # 홀수 코사인 함수 인코딩
+        pe = pe.unsqueeze(0)   # 0차원 위치에 1차원 추가(배치 크기 추가해준 것 같음)
         self.register_buffer('pe', pe)  # pe가 학습되지 않도록 함
 
     def forward(self, x):
         x = x + Variable(self.pe[:, :x.size(1)],
                          requires_grad = False)
         return self.dropout(x)
-    #def forward(self, x):
-    #    x = x + self.pe[:, :x.size(1)]
-    #    return self.dropout(x)
+
 
 # show the graph
 plt.figure(figsize=(15, 5))
