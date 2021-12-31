@@ -28,11 +28,11 @@ print(vocab, len(vocab))
 class EncoderDecoder(nn.Module):
     def __init__(self, encoder, decoder, src_embed, tgt_embed, generator):
         super(EncoderDecoder, self).__init__()
-        self.encoder = encoder
-        self.decoder = decoder
-        self.src_embed = src_embed
-        self.tgt_embed = tgt_embed
-        self.generator = generator
+        self.encoder = encoder # 인코더
+        self.decoder = decoder # 디코더
+        self.src_embed = src_embed  # 입력 문장 임베디드
+        self.tgt_embed = tgt_embed  # 타켓 문장 임베디드
+        self.generator = generator  # 제너레이터
 
     def forward(self, src, tgt, src_mask, tgt_mask):
         # Take in and process masked src and target sequences."
@@ -150,7 +150,7 @@ class DecoderLayer(nn.Module):
 
 def subsequent_mask(size):
     attn_shape = (1, size, size)
-    subsequent_mask = np.triu(np.ones(attn_shape), k =1).astype('uint8')
+    subsequent_mask = np.triu(np.ones(attn_shape), k =1).astype('uint8') # 1번째 대각선 아래로 0으로 채우고 나머지 1
     return torch.from_numpy(subsequent_mask) == 0
 
 def attention(query, key, value, mask = None, dropout = None):
@@ -170,17 +170,16 @@ class MultiHeadedAttention(nn.Module):
     def __init__(self, h, d_model, dropout = 0.1):
         "Take in model size and number of heads"
         super(MultiHeadedAttention, self).__init__()
-        assert d_model % h == 0
-        self.d_k = d_model // h
-        self.h = h
-        self.linears = clones(nn.Linear(d_model, d_model), 4)
-        self.attn = None
+        assert d_model % h == 0 # 가정설정문을 통한 head로 d_model이 나눠지지 않는 경우
+        self.d_k = d_model // h #64 차원
+        self.h = h  # head 개수 8
+        self.linears = clones(nn.Linear(d_model, d_model), 4) #4개의 d_model*d_model 선형함수 생성성        self.attn = None
         self.dropout = nn.Dropout(p = dropout)
 
     def forward(self, query, key, value, mask = None):
         if mask is not None:
-            mask = mask.unsqueeze(1)
-        nbatches = query.size(0)
+            mask = mask.unsqueeze(1) # 마스크 차원 1 증가
+        nbatches = query.size(0)  # 쿼리의 첫번째 차원 크기 만큼 배치 개수
 
         # 1) do all the linear projectionsin batch from d_model => h * d_k
         query, key, value = \
@@ -188,7 +187,7 @@ class MultiHeadedAttention(nn.Module):
          for l, x in zip(self.linears, (query, key, value))]
 
         # 2) apply attention on all the projected vectors in batch.
-        x, self.attn = attention(query, key, value, mask = mask,
+        x, self.attn = attention(query, key, value, mask = mask, # 어탠션
                                  dropout = self.dropout)
 
         # 3) concat using a view and apply a final linear
