@@ -117,8 +117,7 @@ class EncoderLayer(nn.Module):
 
     def forward(self, x, mask):
         x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, mask)) # 첫번째 층 셀프 어탠션
-        return self.sublayer[1](x, self.feed_forward)  # 두번 째 층 피드포워드
-    """리턴으로 피드포워드 층 결과만 보내는 이유는 뭘까?"""
+        return self.sublayer[1](x, self.feed_forward)  # 두번 째 층 피드포워드 출력만 다음 add&norm 연산에 필요하니깐
 ## decoder class
 class Decoder(nn.Module):
     "Generic N layer decoder  with masking"
@@ -144,26 +143,27 @@ class DecoderLayer(nn.Module):
 
     def forward(self, x, memory, src_mask, tgt_mask):
         m = memory
-        x = self.sublayer[0](x, lambda x : self.self_attn(x, x, x, tgt_mask))
-        x = self.sublayer[1](x, lambda x : self.src_attn(x, m, m, src_mask))
-        return self.sublayer[2](x, self.feed_forward)
+        x = self.sublayer[0](x, lambda x : self.self_attn(x, x, x, tgt_mask)) # 디코더의 첫번째 레이어 셀프어탠션 함
+        x = self.sublayer[1](x, lambda x : self.src_attn(x, m, m, src_mask))  # 디코더의 두번째 레이어 셀프어탠션 아님 key, value는 인코더 출력
+        return self.sublayer[2](x, self.feed_forward) # 피드 포워드 까지 한 결과를 내보낸다.
 
-def subsequent_mask(size):
-    attn_shape = (1, size, size)
+def subsequent_mask(size): # 이해한게 맞나 모르겠다
+    attn_shape = (1, size, size) # 튜플 생성
     subsequent_mask = np.triu(np.ones(attn_shape), k =1).astype('uint8') # 1번째 대각선 아래로 0으로 채우고 나머지 1
-    return torch.from_numpy(subsequent_mask) == 0
+    return torch.from_numpy(subsequent_mask) == 0  # torch.from_numpy 텐서로 변환해도 메모리 공유라
+                                                    # 텐서 값 바뀌면 마스크 array 값도 바뀜
 
-def attention(query, key, value, mask = None, dropout = None):
+def attention(query, key, value, mask = None, dropout = None): # 이해한게 맞나 모르겠다
     "Compute 'Scaled Dot Product Attention ' "
     d_k = query.size(-1)
     scores = torch.matmul(query, key.transpose(-2, -1)) \
-    / math.sqrt(d_k)  # 주목 점수 구하는 부분
-    if mask is not None:  # 마스크 있으면
-        scores = scores.masked_fill(mask == 0, -1e9)
-    p_attn = F.softmax(scores, dim = -1)
-    if dropout is not None: # 드롭아웃 있으면
+    / math.sqrt(d_k)                # 주목 점수 구하는 부분
+    if mask is not None:            # 마스크 있으면
+        scores = scores.masked_fill(mask == 0, -1e9)  # 마스크가 false이면 아주 작은 값으로 채움
+    p_attn = F.softmax(scores, dim = -1)     # 소프트맥스 적용
+    if dropout is not None:         # 드롭아웃 있으면
         p_attn = dropout(p_attn)
-    return torch.matmul(p_attn, value), p_attn
+    return torch.matmul(p_attn, value), p_attn # 어탠션 스코어와 어탠션 매트릭스 리턴
 
 "MultiHeadAttention class"
 class MultiHeadedAttention(nn.Module):
@@ -178,7 +178,7 @@ class MultiHeadedAttention(nn.Module):
 
     def forward(self, query, key, value, mask = None):
         if mask is not None:
-            mask = mask.unsqueeze(1) # 마스크 차원 1 증가
+            mask = mask.unsqueeze(1) # 마스크 차원 1차원위치에 1 증가
         nbatches = query.size(0)  # 쿼리의 첫번째 차원 크기 만큼 배치 개수
 
         # 1) do all the linear projectionsin batch from d_model => h * d_k
@@ -215,7 +215,7 @@ class Embeddings(nn.Module) :
         super(Embeddings, self).__init__()
         self.lut = nn.Embedding(vocab, d_model)  # (seq_len, d_model) embedding
         self.d_model = d_model
-## is it need??
+## is it need?? -> forward 함수 자체는 nn.Module 상속이기 때문에 오버라이드 해서 써야 하긴 함
     def forward(self, x):
         return self.lut(x) * math.sqrt(self.d_model) # multiply sqrt(d_model) to embeded result
 
@@ -231,18 +231,16 @@ class PositionalEncoding(nn.Module):
         position = torch.arange(0, max_len).unsqueeze(1)  # max_len * 1 크기의 텐서 생성
         div_term = torch.exp(torch.arange(0, d_model, 2)*  # 1/10000^(2i/d_mdel)
                              -(math.log(10000.0)/d_model))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0)
+        pe[:, 0::2] = torch.sin(position * div_term)  # 짝수 사인함수 인코딩
+        pe[:, 1::2] = torch.cos(position * div_term)  # 홀수 코사인 함수 인코딩
+        pe = pe.unsqueeze(0)   # 0차원 위치에 1차원 추가(배치 크기 추가해준 것 같음)
         self.register_buffer('pe', pe)  # pe가 학습되지 않도록 함
 
     def forward(self, x):
         x = x + Variable(self.pe[:, :x.size(1)],
                          requires_grad = False)
         return self.dropout(x)
-    #def forward(self, x):
-    #    x = x + self.pe[:, :x.size(1)]
-    #    return self.dropout(x)
+
 
 # show the graph
 plt.figure(figsize=(15, 5))
