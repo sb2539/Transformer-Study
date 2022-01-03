@@ -21,10 +21,11 @@ def tokenize(text):
 
 vocab = tokenize(text)
 print(vocab, len(vocab))
+""""""""""""""""""""""""
  ###############################
 
 # encoderdecoder class
-
+# src_mask 가 패딩 마스크고, tgt_mask 가 룩어헤드 마스크라고 생각이 듬
 class EncoderDecoder(nn.Module):
     def __init__(self, encoder, decoder, src_embed, tgt_embed, generator):
         super(EncoderDecoder, self).__init__()
@@ -37,13 +38,16 @@ class EncoderDecoder(nn.Module):
     def forward(self, src, tgt, src_mask, tgt_mask):
         # Take in and process masked src and target sequences."
         return self.decode(self.encode(src, src_mask), src_mask,
-                           tgt, tgt_mask)
+                           tgt, tgt_mask)  # 인코더 와 같은 메모리 가져야 해서 다음과 같이 했나봄
 
     def encode(self, src, src_mask):
-        return self.encoder(self.src_embed(src), src_mask)
+        return self.encoder(self.src_embed(src), src_mask) # 인코드 함수는 임베디드 된 입력 문장에 대해
+                                                         # 마스크 연산과 함께 인코딩
 
-    def decode(self, memory, src_mask, tgt, tgt_mask):
-        return self.decoder(self.tgt_embed(tgt), memory, src_mask, tgt_mask)
+    def decode(self, memory, src_mask, tgt, tgt_mask): # 디코드 함수는 임베디드 된 타켓 문장에 대해
+        return self.decoder(self.tgt_embed(tgt), memory, src_mask, tgt_mask) # 패딩 마스크,
+                                                                            # 룩어헤드 마스크 연산과
+                                                                # 함께 디코딩
 
 # class generator
 """디코더에서 각 timestep 별로 softmax 하여 확률값 반환"""
@@ -65,14 +69,14 @@ class Encoder(nn.Module):
     "Core encoder is a stack of N layers"
     def __init__(self, layer, N):
         super(Encoder, self).__init__()
-        self.layers = clones(layer, N) # 모듈리스트에서 layer 가져옴
+        self.layers = clones(layer, N) # 모듈리스트에서 layer N개만큼 가져옴
         self.norm = LayerNorm(layer.size) # 층 정규화
 
     def forward(self, x, mask):
         # Pass the input (and mask) through each layer in turn"
         for layer in self.layers:
-            x = layer(x, mask)
-        return self.norm(x)
+            x = layer(x, mask) # 이렇게 짜면 레이어가 층으로 쌓이는건가?
+        return self.norm(x) # 층 정규화 연산결과를 내보냄
 
 # LayerNormalization class
 class LayerNorm(nn.Module):
@@ -86,7 +90,7 @@ class LayerNorm(nn.Module):
     def forward(self, x):
         mean = x.mean(-1, keepdim=True) # 평균 산출
         std = x.std(-1, keepdim=True) # 분산 산출
-        return self.a_2 * (x - mean) / (std + self.eps) + self.b_2
+        return self.a_2 * (x - mean) / (std + self.eps) + self.b_2 # 피드포워드 계산 결과 내보냄
 
 # SublayerConnection class
 
@@ -97,12 +101,13 @@ class SublayerConnection(nn.Module):
     """
     def __init__(self, size, dropout):
         super(SublayerConnection, self).__init__()
-        self.norm = LayerNorm(size)
-        self.dropout = nn.Dropout(dropout)
+        self.norm = LayerNorm(size) # 층 정규화 결과
+        self.dropout = nn.Dropout(dropout) # 드롭아웃
 
     def forward(self, x, sublayer):
         "Apply residual connection to any sublayer with the same size"
-        return x + self.dropout(sublayer(self.norm(x)))  # skip connection 부분
+        return x + self.dropout(sublayer(self.norm(x)))  # skip connection 해서
+                                                        # 층 정규화 결과와 입력 행렬 더해주고 리턴
 
 # EncoderLayer class
 
@@ -118,6 +123,7 @@ class EncoderLayer(nn.Module):
     def forward(self, x, mask):
         x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, mask)) # 첫번째 층 셀프 어탠션
         return self.sublayer[1](x, self.feed_forward)  # 두번 째 층 피드포워드 출력만 다음 add&norm 연산에 필요하니깐
+
 ## decoder class
 class Decoder(nn.Module):
     "Generic N layer decoder  with masking"
@@ -128,7 +134,7 @@ class Decoder(nn.Module):
 
     def forward(self, x, memory, src_mask, tgt_mask):
         for layer in self.layers:
-            x = layer(x, memory, src_mask, tgt_mask)
+            x = layer(x, memory, src_mask, tgt_mask) # 인코더 클래스와 동일 but 미리보기 마스크 추가
         return self.norm(x)
 
 class DecoderLayer(nn.Module):
@@ -137,9 +143,10 @@ class DecoderLayer(nn.Module):
         super(DecoderLayer, self).__init__()
         self.size = size
         self.self_attn = self_attn
-        self.src_attn = src_attn
-        self.feed_forward = feed_forward
+        self.src_attn = src_attn # 인코더-디코더 어탠션을 의미하는 듯
+        self.feed_forward = feed_forward # 전향망 연산 결과
         self.sublayer = clones(SublayerConnection(size, dropout), 3)
+        # 첫번째 마스크드 멀티헤드 , 2번째 인코더-디코더 멀티헤드, 전향망 이렇게 3개로 나눈듯
 
     def forward(self, x, memory, src_mask, tgt_mask):
         m = memory
@@ -147,7 +154,7 @@ class DecoderLayer(nn.Module):
         x = self.sublayer[1](x, lambda x : self.src_attn(x, m, m, src_mask))  # 디코더의 두번째 레이어 셀프어탠션 아님 key, value는 인코더 출력
         return self.sublayer[2](x, self.feed_forward) # 피드 포워드 까지 한 결과를 내보낸다.
 
-def subsequent_mask(size): # 이해한게 맞나 모르겠다
+def subsequent_mask(size): # 이해한게 맞나 모르겠다 왜냐면 룩어헤드 마스크 구조의 함수라서...
     attn_shape = (1, size, size) # 튜플 생성
     subsequent_mask = np.triu(np.ones(attn_shape), k =1).astype('uint8') # 1번째 대각선 아래로 0으로 채우고 나머지 1
     return torch.from_numpy(subsequent_mask) == 0  # torch.from_numpy 텐서로 변환해도 메모리 공유라
@@ -171,7 +178,7 @@ class MultiHeadedAttention(nn.Module):
         "Take in model size and number of heads"
         super(MultiHeadedAttention, self).__init__()
         assert d_model % h == 0 # 가정설정문을 통한 head로 d_model이 나눠지지 않는 경우
-        self.d_k = d_model // h #64 차원
+        self.d_k = d_model // h # 64 차원
         self.h = h  # head 개수 8
         self.linears = clones(nn.Linear(d_model, d_model), 4) #4개의 d_model*d_model 선형함수 생성성        self.attn = None
         self.dropout = nn.Dropout(p = dropout)
@@ -215,9 +222,11 @@ class Embeddings(nn.Module) :
         super(Embeddings, self).__init__()
         self.lut = nn.Embedding(vocab, d_model)  # (seq_len, d_model) embedding
         self.d_model = d_model
-## is it need?? -> forward 함수 자체는 nn.Module 상속이기 때문에 오버라이드 해서 써야 하긴 함
+
     def forward(self, x):
-        return self.lut(x) * math.sqrt(self.d_model) # multiply sqrt(d_model) to embeded result
+        return self.lut(x) * math.sqrt(self.d_model) # 이미 nn.Embedding을 통해 임베딩이 된 상태인데
+                                                    # 추가적으로 루트 d_model 결과를 곱해주는 이유가
+                                                    # 무엇인지 모르겠음
 
 ## positional Encoding
 
@@ -228,7 +237,7 @@ class PositionalEncoding(nn.Module):
 
         # Compute the positional encodings once in log space
         pe = torch.zeros(max_len, d_model)     # max_len * d_model 0으로 채워진 텐서
-        position = torch.arange(0, max_len).unsqueeze(1)  # max_len * 1 크기의 텐서 생성
+        position = torch.arange(0, max_len).unsqueeze(1)  # max_len * 1 크기의 텐서 생성, 1번째 차원 위치에 1차원 추가
         div_term = torch.exp(torch.arange(0, d_model, 2)*  # 1/10000^(2i/d_mdel)
                              -(math.log(10000.0)/d_model))
         pe[:, 0::2] = torch.sin(position * div_term)  # 짝수 사인함수 인코딩
@@ -242,10 +251,34 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
+"""하이퍼 파라미터 정의 함수"""
+# 하이퍼 파라미터 정의 : 입력 문장, 타겟문장, 블록개수 = 6개, 차원 크기 = 512,
+# 피드포워드 레이어 차원 2048, 드롭아웃 비율 0.1, 헤드 개수 8개
+def make_model(src_vocab, tgt_vocab, N = 6,
+               d_model = 512, d_ff = 2048, h = 8, dropout = 0.1):
+    c = copy.deepcopy
+    attn = MultiHeadedAttention(h, d_model) # 헤드 개수와, 차원 크기 인자로 사용
+    ff = PositionwiseFeedForward(d_model, d_ff, dropout) # 전향망
+    position = PositionalEncoding(d_model, dropout) # 포지셔널 인코딩
+    model = EncoderDecoder(
+        Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout),N),
+        Decoder(DecoderLayer(d_model, c(attn), c(attn),
+                             c(ff), dropout), N),
+        nn.Sequential(Embeddings(d_model, src_vocab), c(position)),
+        nn.Sequential(Embeddings(d_model, tgt_vocab), c(position)),
+        Generator(d_model, tgt_vocab)
+    )
+    # This was important from their code.
+    # Initialize parameters with Glorot / fan_avg.
+    for p in model.parameters():
+        if p.dim() > 1:
+            nn.init.xavier_uniform_(p)
+    return  model
+
 # show the graph
-plt.figure(figsize=(15, 5))
-pe = PositionalEncoding(20, 0)
-y = pe.forward(Variable(torch.zeros(1, 100, 20)))
-plt.plot(np.arange(100), y[0, :, 4:8].data.numpy())
-plt.legend(["dim %d" %p for p in [4,5,6,7]])
-plt.show()
+#plt.figure(figsize=(15, 5))
+#pe = PositionalEncoding(20, 0)
+#y = pe.forward(Variable(torch.zeros(1, 100, 20)))
+#plt.plot(np.arange(100), y[0, :, 4:8].data.numpy())
+#plt.legend(["dim %d" %p for p in [4,5,6,7]])
+#plt.show()
