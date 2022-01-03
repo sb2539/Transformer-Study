@@ -21,6 +21,7 @@ def tokenize(text):
 
 vocab = tokenize(text)
 print(vocab, len(vocab))
+""""""""""""""""""""""""
  ###############################
 
 # encoderdecoder class
@@ -142,9 +143,10 @@ class DecoderLayer(nn.Module):
         super(DecoderLayer, self).__init__()
         self.size = size
         self.self_attn = self_attn
-        self.src_attn = src_attn
-        self.feed_forward = feed_forward
+        self.src_attn = src_attn # 인코더-디코더 어탠션을 의미하는 듯
+        self.feed_forward = feed_forward # 전향망 연산 결과
         self.sublayer = clones(SublayerConnection(size, dropout), 3)
+        # 첫번째 마스크드 멀티헤드 , 2번째 인코더-디코더 멀티헤드, 전향망 이렇게 3개로 나눈듯
 
     def forward(self, x, memory, src_mask, tgt_mask):
         m = memory
@@ -152,7 +154,7 @@ class DecoderLayer(nn.Module):
         x = self.sublayer[1](x, lambda x : self.src_attn(x, m, m, src_mask))  # 디코더의 두번째 레이어 셀프어탠션 아님 key, value는 인코더 출력
         return self.sublayer[2](x, self.feed_forward) # 피드 포워드 까지 한 결과를 내보낸다.
 
-def subsequent_mask(size): # 이해한게 맞나 모르겠다 왜냐면 룩어헤드 마스크 구조의 함수라서... 
+def subsequent_mask(size): # 이해한게 맞나 모르겠다 왜냐면 룩어헤드 마스크 구조의 함수라서...
     attn_shape = (1, size, size) # 튜플 생성
     subsequent_mask = np.triu(np.ones(attn_shape), k =1).astype('uint8') # 1번째 대각선 아래로 0으로 채우고 나머지 1
     return torch.from_numpy(subsequent_mask) == 0  # torch.from_numpy 텐서로 변환해도 메모리 공유라
@@ -220,9 +222,11 @@ class Embeddings(nn.Module) :
         super(Embeddings, self).__init__()
         self.lut = nn.Embedding(vocab, d_model)  # (seq_len, d_model) embedding
         self.d_model = d_model
-## is it need?? -> forward 함수 자체는 nn.Module 상속이기 때문에 오버라이드 해서 써야 하긴 함
+
     def forward(self, x):
-        return self.lut(x) * math.sqrt(self.d_model) # multiply sqrt(d_model) to embeded result
+        return self.lut(x) * math.sqrt(self.d_model) # 이미 nn.Embedding을 통해 임베딩이 된 상태인데
+                                                    # 추가적으로 루트 d_model 결과를 곱해주는 이유가
+                                                    # 무엇인지 모르겠음
 
 ## positional Encoding
 
@@ -233,7 +237,7 @@ class PositionalEncoding(nn.Module):
 
         # Compute the positional encodings once in log space
         pe = torch.zeros(max_len, d_model)     # max_len * d_model 0으로 채워진 텐서
-        position = torch.arange(0, max_len).unsqueeze(1)  # max_len * 1 크기의 텐서 생성
+        position = torch.arange(0, max_len).unsqueeze(1)  # max_len * 1 크기의 텐서 생성, 1번째 차원 위치에 1차원 추가
         div_term = torch.exp(torch.arange(0, d_model, 2)*  # 1/10000^(2i/d_mdel)
                              -(math.log(10000.0)/d_model))
         pe[:, 0::2] = torch.sin(position * div_term)  # 짝수 사인함수 인코딩
@@ -248,9 +252,9 @@ class PositionalEncoding(nn.Module):
 
 
 # show the graph
-plt.figure(figsize=(15, 5))
-pe = PositionalEncoding(20, 0)
-y = pe.forward(Variable(torch.zeros(1, 100, 20)))
-plt.plot(np.arange(100), y[0, :, 4:8].data.numpy())
-plt.legend(["dim %d" %p for p in [4,5,6,7]])
-plt.show()
+#plt.figure(figsize=(15, 5))
+#pe = PositionalEncoding(20, 0)
+#y = pe.forward(Variable(torch.zeros(1, 100, 20)))
+#plt.plot(np.arange(100), y[0, :, 4:8].data.numpy())
+#plt.legend(["dim %d" %p for p in [4,5,6,7]])
+#plt.show()
