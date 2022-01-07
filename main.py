@@ -11,16 +11,16 @@ seaborn.set_context(context="talk")
 ##%matplotlib inline
 """ 임시로 넣은 토큰 부분 """
 # tokenize
-d_model = 512
-text = "I am a student"
-spacy_en = spacy.load('en_core_web_sm') # using full name 'en' -> 'en_core_web_sm'
-dropout = 0.1
+#d_model = 512
+#text = "I am a student"
+#spacy_en = spacy.load('en_core_web_sm') # using full name 'en' -> 'en_core_web_sm'
+#dropout = 0.1
 
-def tokenize(text):
-    return [tok.text for tok in spacy_en.tokenizer(text)]
+#def tokenize(text):
+#    return [tok.text for tok in spacy_en.tokenizer(text)]
 
-vocab = tokenize(text)
-print(vocab, len(vocab))
+#vocab = tokenize(text)
+#print(vocab, len(vocab))
 """"""""""""""""""""""""
  ###############################
 
@@ -260,6 +260,7 @@ def make_model(src_vocab, tgt_vocab, N = 6,
     attn = MultiHeadedAttention(h, d_model) # 헤드 개수와, 차원 크기 인자로 사용
     ff = PositionwiseFeedForward(d_model, d_ff, dropout) # 전향망
     position = PositionalEncoding(d_model, dropout) # 포지셔널 인코딩
+    """ 모델 생성 부분 """
     model = EncoderDecoder(
         Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout),N),
         Decoder(DecoderLayer(d_model, c(attn), c(attn),
